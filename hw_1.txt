@@ -1,0 +1,266 @@
+# kernel version 5.10.26
+## Note: I copied these out of my editor (neovim w/ a Clang language server installed)
+## ... so it includes some compiler errors.
+
+1. ## in xfs_sysfs.c, @ line 62: 
+    61 static const struct sysfs_ops xfs_sysfs_ops = {
+  ┆  62 ▏ .show = xfs_sysfs_object_show,
+  ┆  63 ▏ .store = xfs_sysfs_object_store,
+  ┆  64 };
+
+  that references: 
+    38 STATIC ssize_t
+  ┆  39 xfs_sysfs_object_show(
+  ┆  40 ▏ struct kobject    *kobject,
+  ┆  41 ▏ struct attribute  *attr,
+  ┆  42 ▏ char      *buf)
+  ┆  43 {
+  ┆  44 ▏ struct xfs_sysfs_attr *xfs_attr = to_attr(attr);
+  ┆  45 ▏
+    46 ▏ return xfs_attr->show ? xfs_attr->show(kobject, buf) : 0;
+  ┆  47 }
+
+  additionally, this struct on line 71 has a pointer (.sysfs_ops) to the xfs_sysfs_ops struct
+  70 struct kobj_type xfs_mp_ktype = {
+	┆  71 ▏ .release = xfs_sysfs_release,
+	┆  72 ▏ .sysfs_ops = &xfs_sysfs_ops,
+	┆  73 ▏ .default_attrs = xfs_mp_attrs,
+	┆  74 };
+
+2. ## in fs/debugfs/file.c
+     41 const struct file_operations debugfs_noop_file_operations = {     ■ Variable has incomplete type 'const struct file_operations'
+  ┆   42 ▏ .read =   default_read_file,
+  ┆   43 ▏ .write =  default_write_file,
+     44 ▏ .open =   simple_open,     ■ Use of undeclared identifier 'simple_open'
+     45 ▏ .llseek = noop_llseek,     ■ Use of undeclared identifier 'noop_llseek'
+  ┆   46 };
+simple_open, for example, is an extern_int in the fs headers
+
+in include/linux/fs.h: 
+  ┆ 3216 extern int simple_open(struct inode *inode, struct file *file); 
+
+3. ## in kernel/trace/trace.c: 
+  ┆ 4806 static const struct file_operations tracing_fops = {
+  ┆ 4807 ▏ .open   = tracing_open,
+  ┆ 4808 ▏ .read   = seq_read,
+  ┆ 4809 ▏ .read_iter  = seq_read_iter,
+  ┆ 4810 ▏ .splice_read  = generic_file_splice_read,
+  ┆ 4811 ▏ .write    = tracing_write_stub,
+  ┆ 4812 ▏ .llseek   = tracing_lseek,
+  ┆ 4813 ▏ .release  = tracing_release,
+  ┆ 4814 };
+
+and tracing_open's signature is on line 4639:
+ 4639 static int tracing_open(struct inode *inode, struct file *file)
+
+ 4. include/linux/fs.h includes plenty of structs w/ function pointers -- e.g. 
+ struct super_operations:
+  1994 struct super_operations {
+	┆ 1995 ▏ ▏ struct inode *(*alloc_inode)(struct super_block *sb);
+	┆ 1996 ▏ void (*destroy_inode)(struct inode *);
+	┆ 1997 ▏ void (*free_inode)(struct inode *);
+	┆ 1998 ▏
+	┆ 1999 ▏ ▏ void (*dirty_inode) (struct inode *, int flags);
+	┆ 2000 ▏ int (*write_inode) (struct inode *, struct writeback_control *wbc);
+	┆ 2001 ▏ int (*drop_inode) (struct inode *);
+	┆ 2002 ▏ void (*evict_inode) (struct inode *);
+	┆ 2003 ▏ void (*put_super) (struct super_block *);
+	┆ 2004 ▏ int (*sync_fs)(struct super_block *sb, int wait);
+	┆ 2005 ▏ int (*freeze_super) (struct super_block *);
+	┆ 2006 ▏ int (*freeze_fs) (struct super_block *);
+	┆ 2007 ▏ int (*thaw_super) (struct super_block *);
+	┆ 2008 ▏ int (*unfreeze_fs) (struct super_block *);
+	┆ 2009 ▏ int (*statfs) (struct dentry *, struct kstatfs *);
+	┆ 2010 ▏ int (*remount_fs) (struct super_block *, int *, char *);
+	┆ 2011 ▏ void (*umount_begin) (struct super_block *);
+	┆ 2012 ▏
+	┆ 2013 ▏ int (*show_options)(struct seq_file *, struct dentry *);
+	┆ 2014 ▏ int (*show_devname)(struct seq_file *, struct dentry *);
+	┆ 2015 ▏ int (*show_path)(struct seq_file *, struct dentry *);
+	┆ 2016 ▏ int (*show_stats)(struct seq_file *, struct dentry *);
+	┆ 2017 #ifdef CONFIG_QUOTA
+	┆ 2018 ▏ ssize_t (*quota_read)(struct super_block *, int, char *, size_t, loff_t);
+	┆ 2019 ▏ ssize_t (*quota_write)(struct super_block *, int, const char *, size_t, loff_t);
+	┆ 2020 ▏ struct dquot **(*get_dquots)(struct inode *);
+	┆ 2021 #endif
+	┆ 2022 ▏ int (*bdev_try_to_free_page)(struct super_block*, struct page*, gfp_t);
+	┆ 2023 ▏ long (*nr_cached_objects)(struct super_block *,
+	┆ 2024 ▏ ▏ ▏ ▏ ▏ struct shrink_control *);
+	┆ 2025 ▏ long (*free_cached_objects)(struct super_block *,
+	┆ 2026 ▏ ▏ ▏ ▏ ▏ ▏ struct shrink_control *);
+	┆ 2027 };
+
+poking around for an instance of, say, drop_inode, I see in fs/ramfs/inode.c: 
+  ┆ 174 static const struct super_operations ramfs_ops = {
+  ┆ 175 ▏ .statfs   = simple_statfs,
+  ┆ 176 ▏ .drop_inode = generic_delete_inode,
+  ┆ 177 ▏ .show_options = ramfs_show_options,
+  ┆ 178 };
+
+I'm still not fully understanding how this maps back to executable code ... but I'm getting there
+
+5. ## ok this one's a little more direct I think
+mining the rich import/linx/fs.h header, I find address space opearations, where some function pointers are defined inline: 
+     367 struct address_space_operations {
+  ┆  368 ▏ int (*writepage)(struct page *page, struct writeback_control *wbc);
+  ┆  369 ▏ int (*readpage)(struct file *, struct page *);
+  ┆  370 ▏
+  ┆  371 ▏ /* Write back some dirty pages from this mapping. */
+  ┆  372 ▏ int (*writepages)(struct address_space *, struct writeback_control *);
+  ┆  373 ▏
+  ┆  374 ▏ /* Set a page dirty.  Return true if this dirtied it */
+  ┆  375 ▏ int (*set_page_dirty)(struct page *page);
+  ┆  376 ▏ ...
+
+where `int (*writepage)(` and `int (*readpage)(`, e.g., are the function pointers.
+at least ... I hope I'm reading that right. 
+
+# 5 places where a fp stored in a struct is used to call a function
+ohh ok, this clears things up some 
+1. ## 
+in /fs/exportfs/expfs.c, a little further up:
+ 
+ here we're taking a `structtatic int exportfs_get_name(struct vfsmount *mnt, struct dentry *dir,     ■■ Declaration of 'struct vfsmount' will not be visible outside of this function
+   ┆  28 ▏ ▏ char *name, struct dentry *child)
+   ┆  29 {
+     30 ▏ const struct export_operations *nop = dir->d_sb->s_export_op;     ■ Incomplete definition of type 'struct dentry'
+     31 ▏ struct path path = {.mnt = mnt, .dentry = dir};     ■ Variable has incomplete type 'struct path'
+   ┆  32 ▏
+     33 ▏ if (nop->get_name)     ■ Incomplete definition of type 'struct export_operations'
+     34 ▏ ▏ return nop->get_name(dir, name, child);     ■ Incomplete definition of type 'struct export_operations'
+   ┆  35 ▏ else
+   ┆  36 ▏ ▏ return get_name(&path, name, child);
+   ┆  37 }dentry *dentry`; later, 
+
+ similar case with the nop pointer:  `return nop->get_name(dir, name, child);`
+ (where earlier nop is read from the dir struct, if I'm reading correctly)
+
+ 2.  in fs/dcache.c around line 1703:
+   ┆ 1703 static struct dentry *__d_alloc(struct super_block *sb, const struct qstr *name) 
+
+a dentry struct is used to call d_init(dentry) with a function pointer, at line 1762:
+  ┆ 1763 ▏ ▏ err = dentry->d_op->d_init(dentry);
+
+3. in fs/debugfs/file.c at around 269
+  269 static int full_proxy_release(struct inode *inode, struct file *filp)
+	┆  270 {
+	┆  271   const struct dentry *dentry = F_DENTRY(filp);
+	┆  272   const struct file_operations *real_fops = debugfs_real_fops(filp);
+	┆  273   const struct file_operations *proxy_fops = filp->f_op;
+	┆  274   int r = 0;
+	┆  275
+	┆  276   /*
+	┆  277    * We must not protect this against removal races here: the
+	┆  278    * original releaser should be called unconditionally in order
+	┆  279    * not to leak any resources. Releasers must not assume that
+	┆  280    * ->i_private is still being meaningful here.
+	┆  281    */
+	┆  282   if (real_fops->release)
+	┆  283     r = real_fops->release(inode, filp);
+
+	here real_fops is a pointer
+	and we see on line 283 that it must a a function pointer because we follow the ref to call the 'release' function
+
+4. in fs/open.c
+
+	┆ 1284 int filp_close(struct file *filp, fl_owner_t id)
+	┆ 1285 {
+	┆ 1286 ▏ int retval = 0;
+	┆ 1287 ▏
+	┆ 1288 ▏ if (!file_count(filp)) {
+	┆ 1289 ▏ ▏ printk(KERN_ERR "VFS: Close: file count is 0\n");
+	┆ 1290 ▏ ▏ return 0;
+	┆ 1291 ▏ }
+	┆ 1292 ▏
+	┆ 1293 ▏ if (filp->f_op->flush)
+	┆ 1294 ▏ ▏ retval = filp->f_op->flush(filp, id);
+	┆ 1295 ▏
+	┆ 1296 ▏ if (likely(!(filp->f_mode & FMODE_PATH))) {
+	┆ 1297 ▏ ▏ dnotify_flush(filp, id);
+	┆ 1298 ▏ ▏ locks_remove_posix(filp, id);
+	┆ 1299 ▏ }
+	┆ 1300 ▏ fput(filp);
+	┆ 1301 ▏ return retval;
+
+	here we take a struct pointer named filp
+	on line 1294, e.g., we follow the pointer to f_op, and then follow f_op to call the 'flush' function
+
+	5.  in fs/coda/file.c
+	┆  95 static void
+	┆  96 coda_vm_open(struct vm_area_struct *vma)
+	┆  97 {
+	┆  98 ▏ struct coda_vm_ops *cvm_ops =
+	┆  99 ▏ ▏ container_of(vma->vm_ops, struct coda_vm_ops, vm_ops);
+	┆ 100 ▏
+	┆ 101 ▏ atomic_inc(&cvm_ops->refcnt);
+	┆ 102 ▏
+	┆ 103 ▏ if (cvm_ops->host_vm_ops && cvm_ops->host_vm_ops->open)
+	┆ 104 ▏ ▏ cvm_ops->host_vm_ops->open(vma);
+	┆ 105 }
+
+	we take a struct pointer called vm_area_struct
+	make local struct pointer called cvm_ops
+	then on line 104, follolw it through host_vm_ops to call the 'open' function
+
+# 5 places where a bitwise operator is used 
+1. a little film I like to call the man in the ecam_mask: 
+  from: drivers/pci/controller/dwc/pcie-al.c
+
+  ┆ 276 ▏ target_bus_cfg->reg_mask = ~target_bus_cfg->ecam_mask;
+
+2. I went looking for '&' but found all kinds of bit-twiddling going on here here:
+  from: drivers/pci/controller/pci-thunder-ecam.c
+
+	┆  20 ▏ pr_debug("set_val %04x: %08x\n", (unsigned)(where & ~3), v);
+	┆  21 ▏ v >>= shift;
+	┆  22 ▏ if (size == 1)
+	┆  23 ▏ ▏ v &= 0xff;
+	┆  24 ▏ else if (size == 2)
+	┆  25 ▏ ▏ v &= 0xffff;
+	┆  26 ▏ *val = v;
+	┆  27 }
+
+3. reading through the operator precedence here makes me feel smart: 
+drivers/pci/controller/dwc/pcie-intel-gw.c
+    82 ▏ val = (old & ~mask) | (val & mask);     ■■■■■ Use of undeclared identifier 'mask'
+(bonus complaints from the clang LSP ... I don't understand why though, the function clearly takes a `u32 mask` param
+
+4. some xor whynot: 
+  from: .//drivers/cpufreq/e_powersaver.c:              brand = (((lo >> 4) ^ (lo >> 2))) & 0x000000ff;
+  this is kinda neat because it kinda reminds me of overclocking stuff. I don't know why.
+   197   switch (c->x86_model) {
+ ┆ 198   case 10:
+ ┆ 199     rdmsr(0x1153, lo, hi);
+ ┆ 200     brand = (((lo >> 2) ^ lo) >> 18) & 3;
+ ┆ 201     pr_cont("Model A ");
+ ┆ 202     break;
+ ┆ 203   case 13:
+ ┆ 204     rdmsr(0x1154, lo, hi);
+ ┆ 205     brand = (((lo >> 4) ^ (lo >> 2))) & 0x000000ff;
+ ┆ 206     pr_cont("Model D ");
+ ┆ 207     break;
+ ┆ 208   }
+
+5. this time I went looking for bitshifting 
+  this one is less fun because it reminds me of terrible video driver issues I ran into when I decided that Slackware was the distro for me.
+  from: drivers/video/backlight/tdo24m.c
+	┆  40 /* use bit 30, 31 as the indicator of command parameter number */
+	┆  41 #define CMD0(x)   ((0 << 30) | (x))
+	┆  42 #define CMD1(x, x1) ((1 << 30) | ((x) << 9) | 0x100 | (x1))
+	┆  43 #define CMD2(x, x1, x2) ((2 << 30) | ((x) << 18) | 0x20000 |\
+	┆  44 ▏ ▏ ▏ ((x1) << 9) | 0x100 | (x2))
+	┆  45 #define CMD_NULL  (-1)
+
+## Find an amusing comment
+from fs/btrfs/delalloc-space.c: 
+ | 296   /*
+ ┆ 297    * If we are a free space inode we need to not flush since we will be in
+ ┆ 298    * the middle of a transaction commit.  We also don't need the delalloc
+ ┆ 299    * mutex since we won't race with anybody.  We need this mostly to make
+ ┆ 300    * lockdep shut its filthy mouth.
+ ┆ 301    *
+ ┆ 302    * If we have a transaction open (can happen if we call truncate_block
+ ┆ 303    * from truncate), then we need FLUSH_LIMIT so we don't deadlock.
+ ┆ 304    */
+
+ "We need this mostly to make lockded shut its filthy mouth" made me giggle a little.
