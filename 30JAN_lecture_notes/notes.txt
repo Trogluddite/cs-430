@@ -1,0 +1,112 @@
+Kernel modules today
+* discussion of kernel version vs. distro major release
+  * E.G., Debian Bullseye (5.10) and Bookworm (6.1)
+* we can add modules without rebooting (in the Unix tradition)
+* we can't really remove a module without a reboot
+* modules have been around since kernel version 1.2
+
+# why modules?
+* easier debugging (modular)
+* less frequent kernel recompiling
+* fewer reboots
+* it's *not* slower (but also not *not* faster)
+* makes the kernel smaller
+* allows us to reload specific drivers without rebooting
+
+# Why not?
+* it makes things more complicated
+* it requires some management system for hotpluggiing
+* Seth used to dislike them
+
+# used for? 
+* device drivers
+* filesystems
+* can add system calls (though, this is pretty uncommon)
+* network drivers (for protocols, e.g., what if I want to add a routing protocol)
+* change executable interpreter (ELF)
+
+utilities:
+* modinfo (module info)
+* depmod (module dependencies)
+* insmod (insert mod) -f to force maximum danger
+* rmmod (remove mod) (or modprobe -r)
+* modprobe
+* lsmodmm
+
+Where does the kernel live?
+/boot/ -- small filesystem there.  Bootloader grabs it.
+
+kernel mod demo (demo.c)
+build demo.ko w/ makefile
+insmod demo.ko
+rmmod demo.ko  
+dmesg to look at errors 
+in code, `printk` to print to kerninfo
+ * include kernel.h, module.h
+ * note that if you use printf, it'll fail; stdio.h isn't includeed by default (not in kernel include directories)
+
+ obj-m += demo.o 
+ make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules  #or 'clean' instead of modules
+
+Unresolved symbols:
+* cat /proc/kallsyms  (look at all symbols) -- if you had a module and wanted to check to see if symbols were availible before you used them
+
+Could not find kernel version:
+* descriptive error messages are sometimes lacking, caveat emptor
+
+how do you know if it worked? 
+* lsmod will tell you if it's in there
+* dmesg for logs in the kernel log
+
+Automatic loading? 
+* some modules are configured to auto-load if you need them; we won't cover that here
+* automatic unloading can occur
+* autoloading is handy for things like USB devices or other hotpluggable whatsits
+* how does driver registration work?
+
+# where are LKM's usually found?
+* usually /lib/modules
+
+
+module verusions
+* kernel version must match module version
+  - memory layout, kernel subroutines, etc
+	- did anything really important change? insmod -f
+	- symbol versioning
+	- gcc versions
+	- what about multiple kernels?
+	   - some people do this
+	- symbol licensing errors & viral GPL
+
+
+Boot without device drivers?
+* complicated, not usually a good idea
+* loader can load stuff into RAM before the kernel starts
+  * we may have a lesser version of the driver built into the kernel, and then a more complex driver loads as a module
+	* video drivers for instance may do this (bootstrapping, safe mode)
+* still need to understand FS and run programs
+
+How Iinsmod works
+* init_module syste call
+* init_module subroutine in module
+   - linking is done at insertion time! 
+
+
+Debugging is possible with kdb
+* more challenging than you'd expect with gdb, e.g.
+* userland debuggers rely on syscalls
+* VMs are nice
+
+Memory:
+* linux kernel is not pagable -- virtual addresses = real addresses
+* modules can't be paged eitehr, but virtual addresses != real addresses
+  - kmalloc is speshal
+
+Demo:
+* blink.c
+* module_init( <function> )
+* module_exit( <function> )
+* iinside the kernel, the stack works as expected, but it's not very big (something like 8k)
+
+Next time ... how would you figure out that this is what you're supposed to write?!
+
