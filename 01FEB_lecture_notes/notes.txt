@@ -1,0 +1,41 @@
+Modules continued
+
+## looking at the proc filesystem
+* e.g. cat `/proc/cpuinfo | grep Core | wc -l` -- watch out for hyperthreading
+  * note that to fully load a hypethreaded processor you'll need to send a thread to each 'core' even if there are a smaller number of physical cores
+* /proc/uptime --
+  * kinda convoluted, which why we use something in userland like `uptime`
+* there are a few places where we can change things --
+  * `cat /proc/sys/net/ipv4/conf/forwarding`
+  * `echo 1 > forwarding`
+  * note that you can't append onto this ... it's not a file, it's a setting
+* There are filesystem entries ... it looks like a filesystem ... but these aren't *files*
+  * note that we can't create files in /proc
+  * entries must be established from inside the kernel
+  * proc_read_demo.c in kmod demo
+  * proc_create creates the file
+    * poorly documented in kernel man pages
+    * mode doesn't matter a lot
+    * parent dir might
+    * const struct proc_ops *proc_ops ...
+      * note the structure has a set of flags, and then some function pointers
+  * loff_t -- file offset
+    * used to track how far into the buffer/file we've read
+    * discussiion of read_simple -- offsets, buffer-sizes, etc to make things size-aware
+    * use loff_t because it's specific to offsets, buffer sizes may otherwise changes.
+    * we may fiind ourselves in pointer-arithmetic cases?
+
+kmod demo
+* return is supposed to return the number of bytes we put in the user's buffer
+* note that cat runs read repeatedly as long as there's something that comes from the file
+* set set up a 'read once' util for the sake of cating the proc_fs module we inserted
+
+# cryptic error if you insmod the same module twice: "file exits"
+
+# lol, we overflowed the userspace stack from a kernel module
+  * we didn't check the user's buffer space from the read_simple function
+  * we increased *offp by the size of our buffer
+
+# **Note** included examples are from the F22 case, not our class instance
+
+# sysprog21.github.io
