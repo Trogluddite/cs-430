@@ -29,8 +29,14 @@ int* sorted_copy(int* source_arr, size_t alen){
 int combine(int, int){
   return 0;
 }
-int find_best(void*, int, size_t){
-  return 0;
+int find_best(void* fp_list, int f_param, size_t num_fps){
+  int best_idx = 0;
+  int best_res = 0;
+  for(int i=0; i<num_fps; i++){
+    printf("fp_list value at idx: %x", ((int*)fp_list)[i]);
+  }
+
+  return best_idx;
 }
 
 int main() {
@@ -39,9 +45,6 @@ int main() {
   bunst.combine = combine;
   bunst.find_best = find_best;
 
-  int sortme[6] = {34,43,51,67,91,100};
-  size_t arrlen = sizeof(sortme) / sizeof(sortme[0]);
-  //int* sorted = bs.sorted_copy(sortme, arrlen);
   test(&bunst);
 	
   return 0;
