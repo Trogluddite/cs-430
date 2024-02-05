@@ -32,10 +32,19 @@ int combine(int, int){
 int find_best(void* fp_list, int f_param, size_t num_fps){
   int best_idx = 0;
   int best_res = 0;
-  for(int i=0; i<num_fps; i++){
-    printf("fp_list value at idx: %x", ((int*)fp_list)[i]);
-  }
 
+  int curr_idx = 0;
+  // de-referencing & casting fp_list -- (**cfunc) is a pointer-to-pointer; returns int; takes int param
+  // iteration comparison: cfunc's address is < (fp_list's address + number of iteratiions * size of first value in cfunc
+  // cfunc++ increases address value by word-size? sizeof(*cfunc), I think?
+  for (int (**cfunc)(int) = fp_list; cfunc < fp_list + (num_fps * sizeof(*cfunc)); cfunc++){
+    int tf_res = (*cfunc)(f_param);
+    if(tf_res > best_res){
+      best_res = tf_res;
+      best_idx = curr_idx;
+    }
+    curr_idx++;
+  }
   return best_idx;
 }
 
