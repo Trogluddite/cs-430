@@ -26,9 +26,16 @@ int* sorted_copy(int* source_arr, size_t alen){
   return sorted;
 }
 
-int combine(int, int){
-  return 0;
+// or both ints
+// shift three places right
+// change last byte to all zeros
+int combine(int a, int b){
+  int or_res = a | b;
+  int shift_res = (or_res >> 3);
+  int end_byte_zeros_mask = (~0) << 8;
+  return shift_res & end_byte_zeros_mask;
 }
+
 int find_best(void* fp_list, int f_param, size_t num_fps){
   int best_idx = 0;
   int best_res = 0;
