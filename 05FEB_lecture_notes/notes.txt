@@ -1,0 +1,38 @@
+proc notes tend to be the most confusing stuff
+
+with a regular file, you store text, and the text comes back normal. 
+We'll make a file that changes the text when we read it ... maybe ... double all of the vowels?
+
+proc_read_demo.c -- where?
+
+write usually returns ssize_t
+
+look into symbol: filename syntax in fp macros ... test it out in my FP demo? 
+  - oh, because we're assigninig a value: 
+  ```
+  struct blah = {
+    symbol1: function_name;
+    symbol2: function_name;
+  }
+  ```
+proc_write 
+
+starting to need linux headers (proc_create, procfs.h seems to be the header we want, per grep)
+
+
+c convention: if you take a pointer, and you choose not to use the pointer, you set it to zero
+
+
+complaints about missing prototypes ... may be a missing header. Note we didn't need prototypes before? Oh, because the prototype is in the header
+
+we may also need to include a MODULE_LICENSE("GPL")  (eg)
+
+write demo: we didn't have a read function so we got read errors. 
+
+note kmalloc in buffer init
+where is it defined? 
+  grep "int *kmalloc()" in headers for example?
+  void *__kmalloc ? 
+  static __always_inliine void *kmalloc ... sneaky.  Oh, it's defined in the header, but calls internal kmalloc.
+
+slab.h -- defines are used to protect double-include (addressing concern about including both slab.h & linux.h)
