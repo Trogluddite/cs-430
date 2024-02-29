@@ -1,0 +1,40 @@
+# Notes on the rise of multi-core processors and Moore's law
+* Linux has a history of running on cheap hardware, and wasn't multi-processor aware for some time
+* how do we make use of more than one CPU?
+  * we may divide labor -- 
+  * give each CPU a specific role
+  * do you have as many roles as CPUs?
+  * instead, we might divide the problem up
+    * separate threads for each of something you have a lot of
+    * divide the problem into identical pieces: each of many threads runs the exact same (small) program.
+      * GPU's are good at that.
+   * Map/Reduce type problems (Hadoop, e.g.)
+* we generally avoid large processin in the OS
+
+Concurrency and Lock types
+  * Atomic operations 
+  * spinlock 
+  * semaphore
+  * mutex 
+
+Atomic ops: 
+* atomic.h (x86 has an 'incl' (atomic increment) instruction?)
+  * atomic_inc method
+ * often built into hardware for a lot of architectures
+ * not in pthreads
+ * gcc does have some; varies between compilers
+
+Spinlock:
+  * works like a mutex, but "busy waits"
+    * uses CPU resources on wait
+
+Mutex & Semaphore all the waiters to sleep and let the scheduler wake them
+
+counting semaphore's usually have operations 'P' and 'V' (probably because Djkstra)
+  * P: down, wait, procure, release
+  * V: up, signal, vacate, acquire
+  * semaphores solve a more complex problem of multiple parties locking & unlocking the resources
+  * man 7 sem_overview
+  * spinlock can be dangerous; we caused deadlock w/ spinlock, and the process can't be killed, the module can't be removed from the kernel
+
+Mutex is really a binary semaphore (except for the point that a true Mutex should only be unlocked by whoever locked it)

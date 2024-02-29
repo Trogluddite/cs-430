@@ -1,0 +1,20 @@
+# kernel C programming 
+* pointers, casting void* as other things, arrays, structures with pointers included, binary arithmetic 
+* dynamic memory management, kmalloc, malloc
+* kernel modules: /proc, proc_ops struct (formerly file_operations), (depends on kernel verison), programming in kernel space, but not much in any details
+* process management. timeslices, scheduling, zombies (didn't go into this in depth so far)
+* interrupts and system calls (short answer, no coding)
+* timers and time in the Kernel (how long is a jiffy?)
+* Data structures ... project hasn't happened yet. (project 4 is red-black trees)
+  * keyboard project could use RB trees or kernel linked lists
+* device drivers -- only if Seth covers them on Thursday
+
+common data types: 
+int, char, pointers to anything, unsigned versions of each, float, double, size_t, ssize_t  (sizes of)
+which is biggest? on x86_64? 
+seth resists short/long (long is different size on linux and windows)
+reference types.h
+
+first page is multiple choice, 8 questions 3 points each, and the rest is short answer programming. You can bring 8 sheets of notes 8.5" x 11 both sides, maybe a couple of examples using pointers would be good to include and a breif definition of anything you you're having trouble remembering
+# function passing puzzle
+# note on linux kernel versions -- they don't represent a progression of features/idioms. It's just 'this one is later than that one'
