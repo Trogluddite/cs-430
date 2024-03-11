@@ -1,29 +1,47 @@
 #include <linux/module.h>
+#include <linux/init.h>
+#include <linux/tty.h>		/* For fg_console, MAX_NR_CONSOLES */
+#include <linux/kd.h>		/* For KDSETLED */
+#include <linux/vt.h>
+#include <linux/vt_kern.h>
+#include <linux/console_struct.h>	/* For vc_cons */
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
 
-#define PROC_FILE_NAME "testfile"
-
+/*
+* proc_fs stuff
+*/
+#define PROC_FILE_NAME "blinker"
 #define PROCFS_MAX_SIZE		1024
 static char procfs_buffer[PROCFS_MAX_SIZE];
 static unsigned long procfs_buffer_size = 0;
-
-char text[] = "There was an armadillo which had a lot of money to invest.  Gold, stocks, property, and bitcoin were all too high!";
+char outbuff[PROCFS_MAX_SIZE] = "Lasdf";
 char inbuff[PROCFS_MAX_SIZE] = "L0";
 
-ssize_t read_simple(struct file *filp, char *buf, size_t count, loff_t *offp ) 
+
+/*
+* blinkenstuff
+*/
+struct timer_list blinken_timer;
+struct tty_driver *blinken_driver;
+char kbledstatus = 0;
+#define BLINK_DELAY   HZ/5
+#define ALL_LEDS_ON   0x07
+#define RESTORE_LEDS  0xFF
+
+ssize_t blink_read(struct file *filp, char *buf, size_t count, loff_t *offp ) 
 {
-	char* readspot = text + *offp;
+	char* readspot = outbuff + *offp;
 	size_t readlen = strlen(readspot) > count ? count : strlen(readspot);
 	printk("proc_read just ran!  count = %lu, sizeof(loff_t) = %lu, *offp = %llu\n", count, sizeof(loff_t), *offp);	
-	if(*offp >= strlen(text))
+	if(*offp >= strlen(outbuff))
 			return 0;
 	strncpy(buf, readspot, count);
 	*offp += readlen;
 	return readlen;
 }
 
-ssize_t write_simple(struct file *file, const char *buffer,
+ssize_t blink_write(struct file *file, const char *buffer,
                  size_t count, loff_t *ppos)
 {
   procfs_buffer_size = count;
@@ -57,20 +75,90 @@ ssize_t write_simple(struct file *file, const char *buffer,
 }
 
 struct proc_ops proc_fops = {
-	proc_read: read_simple,
-	proc_write: write_simple
+	proc_read: blink_read,
+	proc_write: blink_write
 };
 
-int proc_init (void) {
-	printk("We're in the kernel!\n");
-	proc_create(PROC_FILE_NAME,0,NULL,&proc_fops);
+/*
+ * Function timer_func blinks the keyboard LEDs periodically by invoking
+ * command KDSETLED of ioctl() on the keyboard driver. To learn more on virtual 
+ * terminal ioctl operations, please see file:
+ *     /usr/src/linux/drivers/char/vt_ioctl.c, function vt_ioctl().
+ *
+ * The argument to KDSETLED is alternatively set to 7 (thus causing the led 
+ * mode to be set to LED_SHOW_IOCTL, and all the leds are lit) and to 0xFF
+ * (any value above 7 switches back the led mode to LED_SHOW_FLAGS, thus
+ * the LEDs reflect the actual keyboard status).  To learn more on this, 
+ * please see file:
+ *     /usr/src/linux/drivers/char/keyboard.c, function setledstate().
+ * 
+ */
+
+static void timer_func(struct timer_list *timers)
+{
+	int *pstatus = (int *)&kbledstatus;
+
+	if (*pstatus == ALL_LEDS_ON)
+		*pstatus = RESTORE_LEDS;
+	else
+		*pstatus = ALL_LEDS_ON;
+
+	(blinken_driver->ops->ioctl) (vc_cons[fg_console].d->port.tty, KDSETLED,
+			    *pstatus);
+
+	blinken_timer.expires = jiffies + BLINK_DELAY;
+	add_timer(&blinken_timer);
+}
+
+int kbleds_init(void){
+	int i;
+
+	printk(KERN_INFO "HZ = %d, jiffies = %lu\n", HZ, jiffies);
+	printk(KERN_INFO "kbleds: loading\n");
+	printk(KERN_INFO "kbleds: fgconsole is %x\n", fg_console);
+	for (i = 0; i < MAX_NR_CONSOLES; i++) {
+		if (!vc_cons[i].d)
+			break;
+		printk(KERN_INFO "poet_atkm: console[%i/%i] #%i, tty %lx\n", i,
+		       MAX_NR_CONSOLES, vc_cons[i].d->vc_num,
+		       (unsigned long)vc_cons[i].d->port.tty);
+	}
+	printk(KERN_INFO "kbleds: finished scanning consoles\n"); 
+
+	blinken_driver = vc_cons[fg_console].d->port.tty->driver;
+  // tty_driver->magic no present in kernel 6.7.6
+	printk(KERN_INFO "kbleds: tty driver type %x\n", blinken_driver->type);
+
+	/*
+	 * Set up the LED blink timer the first time
+	 */
+	
+	timer_setup(&blinken_timer, timer_func, 0);
+	blinken_timer.expires = jiffies + BLINK_DELAY;
+	add_timer(&blinken_timer);
+
+	blinken_driver->ops->ioctl (vc_cons[fg_console].d->port.tty, KDSETLED, ALL_LEDS_ON);
+
 	return 0;
 }
 
-void proc_cleanup(void) {
-	remove_proc_entry(PROC_FILE_NAME,NULL);
+int blink_init(void) {
+	printk("initializing proc_fs interface and blinkenlights\n");
+	proc_create(PROC_FILE_NAME,0,NULL,&proc_fops);
+  kbleds_init();
+	return 0;
 }
 
-MODULE_LICENSE("GPL"); 
-module_init(proc_init);
-module_exit(proc_cleanup);
+void blink_cleanup(void) {
+	remove_proc_entry(PROC_FILE_NAME,NULL);
+  printk(KERN_INFO "kbleds: unloading...\n");
+	del_timer(&blinken_timer);
+	(blinken_driver->ops->ioctl) (vc_cons[fg_console].d->port.tty, KDSETLED, RESTORE_LEDS);
+  return;
+}
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("CS-430 Project 2, keyboard blinkenlights ocfs read/write.");
+MODULE_AUTHOR("Joe Burchettt, following exaamples from Seth Long & Daniele Paolo Scarpazza");
+module_init(blink_init);
+module_exit(blink_cleanup);
