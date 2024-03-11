@@ -1,4 +1,4 @@
-obj-m += proc_read_write.o
+obj-m += adjustable_blinker.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

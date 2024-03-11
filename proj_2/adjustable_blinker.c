@@ -2,7 +2,6 @@
 #include <linux/init.h>
 #include <linux/tty.h>		        /* For fg_console, MAX_NR_CONSOLES */
 #include <linux/kd.h>		          /* For KDSETLED */
-#include <linux/vt.h>
 #include <linux/vt_kern.h>
 #include <linux/console_struct.h>	/* For vc_cons */
 #include <linux/kernel.h>
@@ -27,8 +26,6 @@ static short blink_divisor = 5;
 struct timer_list blinken_timer;
 struct tty_driver *blinken_driver;
 char kbledstatus = 0;
-//#define BLINK_DELAY   HZ/5
-//#define ALL_LEDS_ON   0x07
 #define RESTORE_LEDS  0xFF
 
 ssize_t blink_read(struct file *filp, char *buf, size_t count, loff_t *offp ) 
