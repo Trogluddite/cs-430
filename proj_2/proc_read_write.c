@@ -1,7 +1,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/tty.h>		/* For fg_console, MAX_NR_CONSOLES */
-#include <linux/kd.h>		/* For KDSETLED */
+#include <linux/tty.h>		        /* For fg_console, MAX_NR_CONSOLES */
+#include <linux/kd.h>		          /* For KDSETLED */
 #include <linux/vt.h>
 #include <linux/vt_kern.h>
 #include <linux/console_struct.h>	/* For vc_cons */
@@ -27,8 +27,8 @@ static short blink_divisor = 5;
 struct timer_list blinken_timer;
 struct tty_driver *blinken_driver;
 char kbledstatus = 0;
-#define BLINK_DELAY   HZ/5
-#define ALL_LEDS_ON   0x07
+//#define BLINK_DELAY   HZ/5
+//#define ALL_LEDS_ON   0x07
 #define RESTORE_LEDS  0xFF
 
 ssize_t blink_read(struct file *filp, char *buf, size_t count, loff_t *offp ) 
@@ -65,14 +65,14 @@ ssize_t blink_write(struct file *file, const char *buffer,
     printk("Invalid control sequence, expected first character of input to be L or D but got %s", inbuff);
     return -EINVAL;
   }
-  else if( inbuff[0] == 'L' && (((char)inbuff[1] - '0') > 7 || ((char)inbuff[1] - '0') < 0)){
+  else if( (inbuff[0] == 'L') && (((char)inbuff[1] - '0') > 7 || ((char)inbuff[1] - '0') < 0) ) {
     printk(
       "Invalid control sequence, LED Pattern must be a number in the range 0-7 but input was %s",
       inbuff
     );
     return -EINVAL;
   }
-  else if( inbuff[0] == 'D' && (((char)inbuff[0] - '0' > 9 || (char)inbuff[1] - '0' < 0)){
+  else if( inbuff[0] == 'D' && (((char)inbuff[0] - '0') > 9 || ((char)inbuff[1] - '0') < 0) ) {
     printk(
       "Invalid control sequence, HZ Divisor must be in the range 0-9 but input was %s",
       inbuff
@@ -126,15 +126,15 @@ static void timer_func(struct timer_list *timers)
 {
 	int *pstatus = (int *)&kbledstatus;
 
-	if (*pstatus == ALL_LEDS_ON)
+	if (*pstatus == blink_leds)
 		*pstatus = RESTORE_LEDS;
 	else
-		*pstatus = ALL_LEDS_ON;
+		*pstatus = blink_leds;
 
 	(blinken_driver->ops->ioctl) (vc_cons[fg_console].d->port.tty, KDSETLED,
 			    *pstatus);
 
-	blinken_timer.expires = jiffies + BLINK_DELAY;
+	blinken_timer.expires = jiffies + (HZ / blink_divisor);
 	add_timer(&blinken_timer);
 }
 
@@ -162,10 +162,10 @@ int kbleds_init(void){
 	 */
 	
 	timer_setup(&blinken_timer, timer_func, 0);
-	blinken_timer.expires = jiffies + BLINK_DELAY;
+	blinken_timer.expires = jiffies + (HZ / blink_divisor);
 	add_timer(&blinken_timer);
 
-	blinken_driver->ops->ioctl (vc_cons[fg_console].d->port.tty, KDSETLED, ALL_LEDS_ON);
+	blinken_driver->ops->ioctl (vc_cons[fg_console].d->port.tty, KDSETLED, blink_leds);
 
 	return 0;
 }
