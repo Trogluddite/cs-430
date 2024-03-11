@@ -7,6 +7,7 @@
 #include <linux/console_struct.h>	/* For vc_cons */
 #include <linux/kernel.h>
 #include <linux/proc_fs.h>
+#include <linux/string.h>
 
 /*
 * proc_fs stuff
@@ -15,10 +16,11 @@
 #define PROCFS_MAX_SIZE		1024
 static char procfs_buffer[PROCFS_MAX_SIZE];
 static unsigned long procfs_buffer_size = 0;
-char outbuff[PROCFS_MAX_SIZE] = "Lasdf";
+char outbuff[PROCFS_MAX_SIZE] = "Lights to blink: 7, HZ divisor: 5\n";
 char inbuff[PROCFS_MAX_SIZE] = "L0";
 
-
+static short blink_leds = 0x07;
+static short blink_divisor = 5;
 /*
 * blinkenstuff
 */
@@ -49,12 +51,12 @@ ssize_t blink_write(struct file *file, const char *buffer,
     procfs_buffer_size = PROCFS_MAX_SIZE;
   }
 
+  /* Validaate input */
   if (copy_from_user(procfs_buffer, buffer, procfs_buffer_size) ){
     printk("copy_from_user failed with input buffer of size %lu", procfs_buffer_size);
     return -EFAULT;
   }
   strncpy(inbuff, buffer, count);
-
   if(count > 3){
     printk("Invalid control sequence, expected input of no more than 2 characters but got %s", inbuff);
     return -EINVAL;
@@ -63,14 +65,40 @@ ssize_t blink_write(struct file *file, const char *buffer,
     printk("Invalid control sequence, expected first character of input to be L or D but got %s", inbuff);
     return -EINVAL;
   }
-  else if( ((char)inbuff[1] - '0') > 7 || ((char)inbuff[1] - '0') < 0){
+  else if( inbuff[0] == 'L' && (((char)inbuff[1] - '0') > 7 || ((char)inbuff[1] - '0') < 0)){
     printk(
-      "Invalid control sequence, second character of input to be a number in the range 0-7 but input was %s",
+      "Invalid control sequence, LED Pattern must be a number in the range 0-7 but input was %s",
       inbuff
     );
     return -EINVAL;
-
   }
+  else if( inbuff[0] == 'D' && (((char)inbuff[0] - '0' > 9 || (char)inbuff[1] - '0' < 0)){
+    printk(
+      "Invalid control sequence, HZ Divisor must be in the range 0-9 but input was %s",
+      inbuff
+    );
+  }
+  /* end input validation */
+
+  /* reset blinkenvals */
+  if(inbuff[0] == 'L'){
+    blink_leds = inbuff[1] - 48;
+  }
+  else{
+    blink_divisor = inbuff[1] - 48;
+  }
+
+  char num_buff[2] = "0"; //for sprintf
+  char new_status[PROCFS_MAX_SIZE] = "Lights to blink: ";
+  sprintf(num_buff, "%d", blink_leds);
+  strcat(new_status, num_buff);
+  strcat(new_status, " HZ divisor: ");
+  sprintf(num_buff, "%d", blink_divisor);
+  strcat(new_status, num_buff);
+  strcat(new_status, " \n");
+  strncpy(outbuff, new_status, strlen(new_status));
+  /* end reset blinkenvals */
+  
   return procfs_buffer_size;
 }
 
